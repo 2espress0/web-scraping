@@ -1,16 +1,14 @@
 # cleaning/clean_transform.py
 import pandas as pd
 import re
+import os
+from googletrans import Translator
 
 class DataCleaner:
+    def __init__(self):
+        self.translator = Translator()
+
     def clean_and_transform_comments(self, comments_df):
-        # Convert list to DataFrame if necessary
-        if isinstance(comments_df, list):
-            comments_df = pd.DataFrame({'Comment': comments_df})
-        
-        # Remove header
-        comments_df = comments_df[comments_df['Comment'] != 'Comment']
-        
         # Remove duplicate comments
         comments_df = comments_df.drop_duplicates()
 
@@ -19,6 +17,9 @@ class DataCleaner:
 
         # Clean comments
         comments_df['Comment'] = comments_df['Comment'].apply(self.clean_comment)
+        
+        # Remove empty comments
+        comments_df = comments_df[comments_df['Comment'] != '']
         
         return comments_df
 
@@ -33,5 +34,20 @@ class DataCleaner:
         arabic_words_only = ' '.join(word for word in cleaned_comment.split() if all(char.isalpha() and ord(char) >= 0x600 and ord(char) <= 0x6FF for char in word))
         return arabic_words_only
 
-    def save_comments_to_csv(self, comments_df, file_path):
-        comments_df.to_csv(file_path, index=False, encoding='utf-8', header=False)
+    def translate_and_save_comments_to_english(self, comments_file, translated_file):
+        comments_df = pd.read_csv(comments_file, header=None, names=['Comment', 'Category'])
+        translated_comments = []
+        
+        for index, row in comments_df.iterrows():
+            try:
+                translated_comment = self.translator.translate(row['Comment'], src='ar', dest='en').text
+                # Remove double quotes, commas, and periods
+                translated_comment = translated_comment.replace('"', '').replace(',', '').replace('.', '')
+                if translated_comment:
+                    translated_comments.append({'Translated_Comment': translated_comment, 'Category': row['Category']})
+            except Exception as e:
+                print(f"Translation failed for comment: {row['Comment']}, error: {e}")
+        
+        translated_df = pd.DataFrame(translated_comments)
+        translated_df.to_csv(translated_file, index=False, encoding='utf-8', header=False)
+        print(f"Translated comments saved to {translated_file}")
